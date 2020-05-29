@@ -20,3 +20,8 @@ export const getTweetsAfterId = (
   id: number,
   amount: number = 50
 ): AxiosPromise<ITweetData> => axios.get(`/api?count=${amount}&afterId=${id}`);
+
+export const getTweetsBeforeId = (
+  id: number,
+  amount: number = 50
+): AxiosPromise<ITweetData> => axios.get(`/api?count=${amount}&beforeId=${id}`);

@@ -12,3 +12,8 @@ export const tweetsSelector = createSelector(
   stateSelector,
   ({ tweets }: IState): Readonly<ITweets> => tweets
 );
+
+export const pauseSelector = createSelector(
+  stateSelector,
+  ({ paused }: IState): Readonly<ITweets> => paused
+);
