@@ -1,8 +1,9 @@
 import React, { FC, useEffect } from "react";
 import { useDispatch } from "react-redux";
 
+import { HomeContainer } from "./styles";
 import TweetsList from "./components/TweetsList";
-import getTweets from "../../../store/tweets/actions";
+import { getTweets } from "../../../store/tweets/actions";
 
 const App: FC = () => {
   const dispatch = useDispatch();
@@ -14,7 +15,11 @@ const App: FC = () => {
     };
   }, [dispatch]);
 
-  return <TweetsList />;
+  return (
+    <HomeContainer>
+      <TweetsList />
+    </HomeContainer>
+  );
 };
 
 export default App;

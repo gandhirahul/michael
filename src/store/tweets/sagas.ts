@@ -1,13 +1,37 @@
-import { takeLatest, delay, take, call, put, race } from "redux-saga/effects";
+import {
+  takeLatest,
+  delay,
+  take,
+  call,
+  put,
+  race,
+  select
+} from "redux-saga/effects";
 import { getType } from "typesafe-actions";
 
-import getTweetsAction from "./actions";
-import { getLatestTweets, getTweetsAfterId } from "../../services/api/tweets";
+import * as actions from "./actions";
+import { pauseSelector } from "./selectors";
+import {
+  getLatestTweets,
+  getTweetsAfterId,
+  getTweetsBeforeId
+} from "../../services/api/tweets";
 import { ITweetData } from "../../services/api/tweets/model";
 
 const POLL_DELAY = 2000;
 const INITIAL_TWEET_COUNT = 10;
 const TWEETS_AFTER_ID_COUNT = 50;
+
+function* pauseSaga() {
+  const paused = yield select(pauseSelector);
+  if (paused) {
+    let loop = true;
+    while (loop) {
+      const { payload } = yield take(getType(actions.pause));
+      loop = payload;
+    }
+  }
+}
 
 /**
  * Recursively fetch chunks of 50 (api max) tweets, until all tweets are fetched
@@ -21,6 +45,7 @@ function* getFromIdToLatestSaga(id: number) {
   let tweets: ITweetData = [];
   while (true) {
     try {
+      yield call(pauseSaga);
       const { data }: { data: ITweetData } = yield call(
         getTweetsAfterId,
         currentId,
@@ -32,7 +57,7 @@ function* getFromIdToLatestSaga(id: number) {
         return tweets;
       }
     } catch (error) {
-      yield put(getTweetsAction.failure(error));
+      yield put(actions.getTweets.failure(error));
     }
   }
 }
@@ -45,15 +70,36 @@ function* pollFromIdSaga(id: number) {
   let currentId = id;
   while (true) {
     try {
-      const data: ITweetData = yield call(getFromIdToLatestSaga, currentId);
+      yield call(pauseSaga);
+      // const data: ITweetData = yield call(getFromIdToLatestSaga, currentId);
+      const { data }: { data: ITweetData } = yield call(
+        getTweetsAfterId,
+        currentId,
+        TWEETS_AFTER_ID_COUNT
+      );
       currentId = data[0].id;
-      yield put(getTweetsAction.success({ tweets: data }));
+      yield put(actions.getTweets.success({ tweets: data }));
       yield delay(POLL_DELAY);
     } catch (error) {
-      yield put(getTweetsAction.failure(error));
+      yield put(actions.getTweets.failure(error));
     }
   }
 }
+
+// function* pollFromIdSaga(id: number) {
+//   let currentId = id;
+//   while (true) {
+//     try {
+//       yield call(pauseSaga);
+//       const data: ITweetData = yield call(getFromIdToLatestSaga, currentId);
+//       currentId = data[0].id;
+//       yield put(actions.getTweets.success({ tweets: data }));
+//       yield delay(POLL_DELAY);
+//     } catch (error) {
+//       yield put(actions.getTweets.failure(error));
+//     }
+//   }
+// }
 
 /**
  * Fetch the 10 latest tweets before initiating a 2 second poll for latest tweets
@@ -61,11 +107,12 @@ function* pollFromIdSaga(id: number) {
 function* getLatestTweetsSaga() {
   while (true) {
     try {
+      yield call(pauseSaga);
       const { data }: { data: ITweetData } = yield call(
         getLatestTweets,
         INITIAL_TWEET_COUNT
       );
-      yield put(getTweetsAction.success({ initial: true, tweets: data }));
+      yield put(actions.getTweets.success({ initial: true, tweets: data }));
 
       // only starting polling when tweets not empty, otherwise keep trying to get latest
       if (data.length > 0) {
@@ -75,7 +122,7 @@ function* getLatestTweetsSaga() {
       }
       yield delay(POLL_DELAY);
     } catch (error) {
-      yield put(getTweetsAction.failure(error));
+      yield put(actions.getTweets.failure(error));
     }
   }
 }
@@ -86,13 +133,35 @@ function* getLatestTweetsSaga() {
 function* startPollingTweetsSaga() {
   yield race({
     task: call(getLatestTweetsSaga),
-    cancel: take(getType(getTweetsAction.cancel))
+    cancel: take(getType(actions.getTweets.cancel))
   });
+}
+
+function* getPreviousTweetsSaga() {
+  console.log("!!!");
+  const currentId = 200;
+  try {
+    console.log("!!! A");
+    const { data }: { data: ITweetData } = yield call(
+      getTweetsBeforeId,
+      currentId,
+      TWEETS_AFTER_ID_COUNT
+    );
+    console.log("!!! B", data);
+    yield put(actions.getPreviousTweets.success(data));
+  } catch (error) {
+    console.log("!!! C");
+    yield put(actions.getPreviousTweets.failure(error));
+  }
 }
 
 /**
  * Starts polling flow when a getTweet request action is dispatched
  */
 export default function* rootSaga() {
-  yield takeLatest(getType(getTweetsAction.request), startPollingTweetsSaga);
+  yield takeLatest(getType(actions.getTweets.request), startPollingTweetsSaga);
+  yield takeLatest(
+    getType(actions.getPreviousTweets.request),
+    getPreviousTweetsSaga
+  );
 }

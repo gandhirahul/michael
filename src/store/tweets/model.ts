@@ -12,6 +12,7 @@ export type ITweets = ITweet[];
 
 export type IState = DeepReadonly<{
   polling: boolean;
+  paused: boolean;
   errorMessage: string | undefined;
   tweets: ITweets;
 }>;
